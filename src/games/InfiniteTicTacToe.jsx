@@ -27,6 +27,7 @@ export default function InfiniteTicTacToe({ onComplete }) {
   const gestureRef = useRef({ pointers: new Map(), start: null, moved: false, pinchDistance: 0 })
   const cameraRef = useRef({ x: 0, y: 0, zoom: 1 })
   const [cells, setCells] = useState({})
+  const [moveOrder, setMoveOrder] = useState({ X: [], O: [] })
   const [turn, setTurn] = useState('X')
   const [winner, setWinner] = useState(null)
   const [camera, setCamera] = useState(cameraRef.current)
@@ -128,8 +129,14 @@ export default function InfiniteTicTacToe({ onComplete }) {
     const key = cellKey(x, y)
     if (cells[key]) return
     const nextCells = { ...cells, [key]: turn }
+    const nextMoveOrder = { ...moveOrder, [turn]: [...moveOrder[turn], key] }
+    if (nextMoveOrder[turn].length > 3) {
+      delete nextCells[nextMoveOrder[turn][0]]
+      nextMoveOrder[turn] = nextMoveOrder[turn].slice(1)
+    }
     const line = findWinningLine(nextCells, x, y, turn)
     setCells(nextCells)
+    setMoveOrder(nextMoveOrder)
     if (line) {
       setWinner({ mark: turn, line })
       if (turn === 'X') onComplete?.(100, { winner: turn })
@@ -178,7 +185,7 @@ export default function InfiniteTicTacToe({ onComplete }) {
     if (!gesture.pointers.size) gesture.moved = false
   }
 
-  const restart = () => { setCells({}); setTurn('X'); setWinner(null); setView({ x: 0, y: 0, zoom: 1 }) }
+  const restart = () => { setCells({}); setMoveOrder({ X: [], O: [] }); setTurn('X'); setWinner(null); setView({ x: 0, y: 0, zoom: 1 }) }
   const zoomBy = (factor) => setView({ ...cameraRef.current, zoom: Math.min(1.8, Math.max(0.55, cameraRef.current.zoom * factor)) })
 
   return (
@@ -189,7 +196,7 @@ export default function InfiniteTicTacToe({ onComplete }) {
         <div className="board-zoom-controls"><button onClick={() => zoomBy(0.85)} aria-label="Zoom out"><Minus size={14} /></button><button onClick={() => zoomBy(1.18)} aria-label="Zoom in"><Plus size={14} /></button></div>
         {winner && <div className="board-win-banner">{winner.mark} connects three</div>}
       </div>
-      <div className="game-footnote"><span>Tap an empty cell to mark</span><span>Drag to pan · Pinch or scroll to zoom</span></div>
+      <div className="game-footnote"><span>Place 3 marks · your 4th removes your oldest</span><span>Drag to pan · Pinch or scroll to zoom</span></div>
     </div>
   )
 }

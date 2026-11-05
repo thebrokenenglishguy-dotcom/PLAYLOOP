@@ -60,7 +60,7 @@ export const games = [
     category: 'Board',
     description: 'Claim an endless grid and connect three marks before your rival does.',
     shortDescription: 'Three in a row. No edge to escape.',
-    instructions: 'Tap to place · Drag to pan · Pinch to zoom',
+    instructions: '4th mark removes oldest · Drag to pan · Pinch to zoom',
     players: 'New',
     color: 'teal',
     emoji: '⭕',
