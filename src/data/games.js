@@ -84,7 +84,7 @@ export const games = [
     category: 'Arcade',
     description: 'Trade rallies against the computer or challenge a friend on one screen.',
     shortDescription: 'Classic rally, your choice of rival.',
-    instructions: 'W / S vs arrows · Hold touch controls to move',
+    instructions: 'Touch and drag to move paddles · W / S vs arrow keys',
     players: 'New',
     color: 'blue',
     emoji: '🏓',

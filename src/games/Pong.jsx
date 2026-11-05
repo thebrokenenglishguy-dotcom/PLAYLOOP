@@ -13,7 +13,7 @@ function makeBall(direction = Math.random() < 0.5 ? -1 : 1) {
 
 export default function Pong({ onComplete }) {
   const canvasRef = useRef(null)
-  const stateRef = useRef({ ball: makeBall(), leftY: HEIGHT / 2, rightY: HEIGHT / 2, leftScore: 0, rightScore: 0, status: 'ready', mode: 'cpu', keys: new Set(), frame: 0, lastTime: 0 })
+  const stateRef = useRef({ ball: makeBall(), leftY: HEIGHT / 2, rightY: HEIGHT / 2, leftScore: 0, rightScore: 0, status: 'ready', mode: 'cpu', keys: new Set(), pointerPaddles: new Map(), frame: 0, lastTime: 0 })
   const onCompleteRef = useRef(onComplete)
   const [mode, setMode] = useState('cpu')
   const [status, setStatus] = useState('ready')
@@ -72,13 +72,20 @@ export default function Pong({ onComplete }) {
       state.lastTime = time
       if (state.status === 'playing') {
         const keys = state.keys
+        let leftTouchY
+        let rightTouchY
+        state.pointerPaddles.forEach(({ side, y }) => {
+          if (side === 'left') leftTouchY = y
+          else rightTouchY = y
+        })
         const leftDirection = Number(keys.has('s') || state.mode === 'cpu' && keys.has('arrowdown')) - Number(keys.has('w') || state.mode === 'cpu' && keys.has('arrowup'))
         const rightDirection = Number(keys.has('arrowdown')) - Number(keys.has('arrowup'))
-        state.leftY = Math.max(PADDLE.height / 2, Math.min(HEIGHT - PADDLE.height / 2, state.leftY + leftDirection * 390 * delta))
-        if (state.mode === 'cpu') {
+        state.leftY = leftTouchY ?? Math.max(PADDLE.height / 2, Math.min(HEIGHT - PADDLE.height / 2, state.leftY + leftDirection * 390 * delta))
+        if (state.mode === 'cpu' && rightTouchY === undefined) {
           const target = state.ball.y + state.ball.vy * 0.12
           state.rightY += Math.sign(target - state.rightY) * Math.min(Math.abs(target - state.rightY), 290 * delta)
-        } else state.rightY = Math.max(PADDLE.height / 2, Math.min(HEIGHT - PADDLE.height / 2, state.rightY + rightDirection * 390 * delta))
+        } else if (rightTouchY !== undefined) state.rightY = rightTouchY
+        else state.rightY = Math.max(PADDLE.height / 2, Math.min(HEIGHT - PADDLE.height / 2, state.rightY + rightDirection * 390 * delta))
 
         const ball = state.ball
         ball.x += ball.vx * delta
@@ -130,7 +137,10 @@ export default function Pong({ onComplete }) {
       }
     }
     const handleKeyUp = (event) => stateRef.current.keys.delete(event.key.toLowerCase())
-    const clearKeys = () => stateRef.current.keys.clear()
+    const clearKeys = () => {
+      stateRef.current.keys.clear()
+      stateRef.current.pointerPaddles.clear()
+    }
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)
     window.addEventListener('blur', clearKeys)
@@ -150,6 +160,7 @@ export default function Pong({ onComplete }) {
     state.rightScore = 0
     state.lastTime = 0
     state.keys.clear()
+    state.pointerPaddles.clear()
     state.status = 'ready'
     setScore([0, 0])
     setStatus('ready')
@@ -160,16 +171,26 @@ export default function Pong({ onComplete }) {
     setStatus('playing')
   }
 
-  const hold = (key, active) => {
-    if (active) stateRef.current.keys.add(key)
-    else stateRef.current.keys.delete(key)
+  const movePaddleWithPointer = (event) => {
+    const state = stateRef.current
+    if (state.status !== 'playing') return
+    if (event.type === 'pointerdown') event.currentTarget.setPointerCapture(event.pointerId)
+    else if (!state.pointerPaddles.has(event.pointerId)) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const side = state.mode === 'cpu' || event.clientX < rect.left + rect.width / 2 ? 'left' : 'right'
+    const y = Math.max(PADDLE.height / 2, Math.min(HEIGHT - PADDLE.height / 2, (event.clientY - rect.top) / rect.height * HEIGHT))
+    state.pointerPaddles.set(event.pointerId, { side, y })
+  }
+
+  const releasePaddlePointer = (event) => {
+    stateRef.current.pointerPaddles.delete(event.pointerId)
   }
 
   return (
     <div className="mini-game pong-game">
       <div className="game-hud"><div><span className="hud-label">YOU</span><strong>{String(score[0]).padStart(2, '0')}</strong></div><div className="pong-mode-control" role="group" aria-label="Pong game mode"><button className={mode === 'cpu' ? 'selected' : ''} onClick={() => { setMode('cpu'); restart() }}>VS COMPUTER</button><button className={mode === 'local' ? 'selected' : ''} onClick={() => { setMode('local'); restart() }}>2 PLAYERS</button></div><div><span className="hud-label">{mode === 'cpu' ? 'CPU' : 'PLAYER 2'}</span><strong>{String(score[1]).padStart(2, '0')}</strong></div><GameButton className="restart-small" onClick={restart} aria-label="Restart game"><RotateCcw size={15} /></GameButton></div>
-      <div className="pong-stage"><canvas ref={canvasRef} className="pong-canvas" aria-label="Pong match" />{status !== 'playing' && <div className="pong-overlay"><span className="hud-label">FIRST TO {WIN_SCORE}</span><strong>{status === 'done' ? score[0] >= WIN_SCORE ? 'YOU WIN' : mode === 'cpu' ? 'COMPUTER WINS' : 'PLAYER 2 WINS' : 'READY TO RALLY?'}</strong><GameButton onClick={start}>{status === 'done' ? 'Play again' : 'Start match'}</GameButton></div>}</div>
-      <div className="pong-touch-controls"><div className="pong-control-side"><span>PLAYER 1</span><button aria-label="Move player 1 up" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); hold('w', true) }} onPointerUp={() => hold('w', false)} onPointerCancel={() => hold('w', false)} onPointerLeave={() => hold('w', false)}>UP</button><button aria-label="Move player 1 down" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); hold('s', true) }} onPointerUp={() => hold('s', false)} onPointerCancel={() => hold('s', false)} onPointerLeave={() => hold('s', false)}>DOWN</button></div><span className="pong-key-hint">W / S {mode === 'cpu' ? '· arrows also move you' : '· ARROWS'}</span>{mode === 'local' && <div className="pong-control-side right"><span>PLAYER 2</span><button aria-label="Move player 2 up" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); hold('arrowup', true) }} onPointerUp={() => hold('arrowup', false)} onPointerCancel={() => hold('arrowup', false)} onPointerLeave={() => hold('arrowup', false)}>UP</button><button aria-label="Move player 2 down" onPointerDown={(event) => { event.currentTarget.setPointerCapture(event.pointerId); hold('arrowdown', true) }} onPointerUp={() => hold('arrowdown', false)} onPointerCancel={() => hold('arrowdown', false)} onPointerLeave={() => hold('arrowdown', false)}>DOWN</button></div>}</div>
+      <div className="pong-stage"><canvas ref={canvasRef} className="pong-canvas" aria-label={`Pong match. Touch and drag to move ${mode === 'cpu' ? 'your paddle' : 'the paddle on your side'}.`} onPointerDown={movePaddleWithPointer} onPointerMove={movePaddleWithPointer} onPointerUp={releasePaddlePointer} onPointerCancel={releasePaddlePointer} onLostPointerCapture={releasePaddlePointer} />{status !== 'playing' && <div className="pong-overlay"><span className="hud-label">FIRST TO {WIN_SCORE}</span><strong>{status === 'done' ? score[0] >= WIN_SCORE ? 'YOU WIN' : mode === 'cpu' ? 'COMPUTER WINS' : 'PLAYER 2 WINS' : 'READY TO RALLY?'}</strong><GameButton onClick={start}>{status === 'done' ? 'Play again' : 'Start match'}</GameButton></div>}</div>
+      <div className="pong-control-hint"><span>TOUCH &amp; DRAG {mode === 'cpu' ? 'ANYWHERE' : 'YOUR HALF'} TO MOVE</span><span className="pong-key-hint">{mode === 'cpu' ? 'W / S · arrow keys' : 'P1: W / S · P2: arrow keys'}</span></div>
       <div className="game-footnote"><span>First to {WIN_SCORE} points wins</span><span>{mode === 'cpu' ? 'W / S to move · arrows supported' : 'W / S vs arrow keys'}</span></div>
     </div>
   )
